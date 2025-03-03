@@ -23,38 +23,53 @@ class AdminController extends Controller
             'name' => 'required|string|max:255', // Sử dụng admin_name thay vì email
             'password' => 'required|min:6',
         ]);
-
+    
         // Kiểm tra thông tin đăng nhập (sử dụng admin_name thay vì name)
         $credentials = $request->only('name', 'password');
-
-        // Tìm kiếm admin bằng admin_name trong bảng users
+    
+        // Tìm kiếm người dùng bằng name trong bảng users
         $user = User::where('name', $credentials['name'])->first();  // Đảm bảo bạn sử dụng đúng trường trong bảng users
-
+    
         // Kiểm tra nếu user tồn tại và mật khẩu đúng
         if ($user && Hash::check($credentials['password'], $user->password)) {
-            // Kiểm tra xem người dùng có phải là admin không
-            if ($user->role != 'admin') {
+            // Kiểm tra vai trò của người dùng
+            if ($user->role === 'admin') {
+                // Nếu là admin, tạo token và trả về
+                $token = $user->createToken('AdminToken')->plainTextToken;
+                return response()->json([
+                    'message' => 'Đăng nhập thành công',
+                    'token' => $token,
+                    'role' => $user->role,
+                ]);
+            } elseif ($user->role === 'user') {
+                // Nếu là user, tạo token và trả về
+                $token = $user->createToken('UserToken')->plainTextToken;
+                return response()->json([
+                    'message' => 'Đăng nhập thành công',
+                    'token' => $token,
+                    'role' => $user->role,
+                ]);
+            } else {
+                // Trả về lỗi nếu không phải admin hoặc user
                 return response()->json([
                     'message' => 'Bạn không có quyền truy cập trang này.',
                 ], 403);
             }
-
-            // Nếu đăng nhập thành công và là admin, tạo token
-            $token = $user->createToken('AdminToken')->plainTextToken;
-
-            return response()->json([
-                'message' => 'Đăng nhập thành công',
-                'token' => $token,  
-                'role' => $user->role, 
-            ]);
-            
         }
-
+    
         // Nếu đăng nhập thất bại
         return response()->json([
             'message' => 'Thông tin đăng nhập không đúng.',
         ], 401);
     }
+    
+    public function getUserInfo(Request $request)
+    {
+        // Trả về thông tin người dùng từ token đã xác thực
+        $user = $request->user();
+        return response()->json(['user' => $user]);
+    }
+    
     public function signup(Request $request)
     {
         // Xác thực dữ liệu đầu vào
@@ -69,7 +84,7 @@ class AdminController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),  // Mã hóa mật khẩu
-            'role' => 'admin',  // Cột role mặc định là user
+            'role' => 'user',  // Cột role mặc định là user
         ]);
 
         // Tạo token cho người dùng mới
@@ -82,6 +97,7 @@ class AdminController extends Controller
             'user' => $user,  // Trả về thông tin người dùng
         ], 201);
     }
+
     public function logout(Request $request)
     {
         // Lấy người dùng đã đăng nhập từ token
@@ -97,5 +113,4 @@ class AdminController extends Controller
             'message' => 'Đăng xuất thành công.'
         ]);
     }
-    
 }
